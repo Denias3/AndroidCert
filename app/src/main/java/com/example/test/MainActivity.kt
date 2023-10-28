@@ -1,6 +1,8 @@
 package com.example.test
 
 import android.os.Bundle
+import android.security.KeyChain
+import android.security.KeyChainAliasCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,14 +20,19 @@ import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
 import java.io.InputStream
+import java.net.Socket
 import java.security.KeyStore
+import java.security.Principal
+import java.security.PrivateKey
 import java.security.SecureRandom
 import java.security.cert.Certificate
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
+import javax.net.ssl.KeyManager
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509KeyManager
 import javax.net.ssl.X509TrustManager
 
 class MainActivity : ComponentActivity() {
@@ -44,6 +51,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
         runHttpRequest()
 
 
@@ -70,6 +78,7 @@ class MainActivity : ComponentActivity() {
 
     private fun runHttpRequest() {
 
+        // Получение всех корневых сертификатов
         val keyStore = KeyStore.getInstance("AndroidCAStore")
 
         keyStore.load(null, null)
@@ -78,23 +87,43 @@ class MainActivity : ComponentActivity() {
         trustManagerFactory.init(keyStore)
         val trustManagers = trustManagerFactory.trustManagers
 
-        val aliases = keyStore.aliases()
+        // Просмотр всех корневых сертификатов
+//        val aliases = keyStore.aliases()
+//
+//        while (aliases.hasMoreElements()) {
+//            val alias = aliases.nextElement()
+//
+//            val certificate: Certificate? = keyStore.getCertificate(alias)
+//            if (certificate is X509Certificate) {
+//                val x509certificate = certificate as X509Certificate
+//                println("Certificate subject: ${x509certificate.subjectDN}")
+//            }
+//        }
 
-        while (aliases.hasMoreElements()) {
-            val alias = aliases.nextElement()
-
-            val certificate: Certificate? = keyStore.getCertificate(alias)
-            if (certificate is X509Certificate) {
-                val x509certificate = certificate as X509Certificate
-                println("Certificate subject: ${x509certificate.subjectDN}")
-            }
-        }
+        // Получение привытных ключей
 
 
-        val keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
-        keyManagerFactory.init(keyStore, null)
+        val keyStorePrivate = KeyStore.getInstance("PKCS12")
 
-        val keyManagers = keyManagerFactory.keyManagers
+        // Ваш фаил сертификатов в папке `res/raw` формата pfx
+        val certificateResId = R.raw.android
+        var fis: InputStream = resources.openRawResource(certificateResId)
+
+        // password это пароль вашего сертификата. Если у вашего сертификата нет пароля укажите `null`
+        keyStorePrivate.load(fis, "pass".toCharArray())
+
+        val kmf = KeyManagerFactory.getInstance("X509")
+        kmf.init(keyStorePrivate, "pass".toCharArray())
+        val keyManagers: Array<KeyManager> = kmf.getKeyManagers()
+
+//        val sslContext = SSLContext.getInstance("SSL")
+//        sslContext.init(keyManagers, null , null)
+
+
+
+//        val keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
+//        keyManagerFactory.init(keyStore, null)
+//        val keyManagers = keyManagerFactory.keyManagers
 
         val sslContext = SSLContext.getInstance("TLSv1.3")
         sslContext.init(keyManagers, trustManagers, SecureRandom())
@@ -130,6 +159,7 @@ class MainActivity : ComponentActivity() {
             }
         })
     }
+
 }
 
 @Composable
